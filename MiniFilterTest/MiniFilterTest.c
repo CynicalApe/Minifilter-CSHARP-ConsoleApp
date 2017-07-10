@@ -20,7 +20,6 @@ Environment:
 #pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
 
 SCANNER_DATA ScannerData;
-PFLT_FILTER gFilterHandle;
 ULONG_PTR OperationStatusCtx = 1;
 
 #define PTDBG_TRACE_ROUTINES            0x00000001
@@ -154,9 +153,30 @@ foo
 	UNREFERENCED_PARAMETER(CompletionContext);
 	UNREFERENCED_PARAMETER(Data);
 
+	char buffer[25] = "kernel callback\n";
 	if (ScannerData.ClientPort && ScannerData.ServerPort && ScannerData.Filter)
 	{
-		DbgPrint("Create request reached port");
+		DbgPrint("Sending message.\n");
+
+
+		DbgPrint("Client port: 0x%p\n", ScannerData.ClientPort);
+		DbgPrint("Server port: 0x%p\n", ScannerData.ServerPort);
+
+	/*	status = FltSendMessage
+		(
+			ScannerData.Filter,
+			&(ScannerData.ClientPort),
+			(PVOID)FltObjects->FileObject->FileName.Buffer,
+			FltObjects->FileObject->FileName.Length,
+			NULL,
+			NULL,
+			100
+		);*/
+
+	//if (!NT_SUCCESS(status))
+	//		DbgPrint("Comm error \n");
+
+		DbgPrint("Sent. \n");
 	}
 
 	
@@ -498,11 +518,9 @@ Return Value:
     //  Register with FltMgr to tell it our callback routines
     //
 	DbgPrint("UPDATE8 \n");
-    status = FltRegisterFilter( DriverObject,
-                                &FilterRegistration,
-                                &ScannerData.Filter );
-
-	gFilterHandle = ScannerData.Filter;
+	status = FltRegisterFilter(DriverObject,
+		&FilterRegistration,
+		&ScannerData.Filter);
 
     FLT_ASSERT( NT_SUCCESS( status ) );
 
@@ -563,11 +581,11 @@ Return Value:
 		//  Start filtering i/o
 		//
 
-		status = FltStartFiltering(gFilterHandle);
+		status = FltStartFiltering(ScannerData.Filter);
 
 		if (!NT_SUCCESS(status)) {
 
-			FltUnregisterFilter(gFilterHandle);
+			FltUnregisterFilter(ScannerData.Filter);
 		}
 	}
     return status;
@@ -604,7 +622,7 @@ Return Value:
                   ("MiniFilterTest!MiniFilterTestUnload: Entered\n") );
 
 	FltCloseCommunicationPort(ScannerData.ServerPort);
-    FltUnregisterFilter( gFilterHandle );
+    FltUnregisterFilter(ScannerData.Filter);
 
 
 	//

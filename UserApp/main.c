@@ -6,6 +6,12 @@
 #include <Fltuser.h>
 
 const PWSTR ScannerPortName = L"\\ScannerPort";
+#define buffersize 1024
+typedef struct joe
+{
+	FILTER_MESSAGE_HEADER header;
+	char buffer[buffersize];
+} JOE, *PJOE;
 
 int _cdecl
 main
@@ -15,6 +21,7 @@ main
 	HRESULT hr;
 	HANDLE port;	
 	HRESULT kernelmessage;
+	JOE message;
 	
 	printf("Scanner: Connecting to the filter ...\n");
 	hr = FilterConnectCommunicationPort
@@ -35,7 +42,8 @@ main
 
 	while (1)
 	{
-
+		printf("Connected to port: 0x%08x\n", port);
+		Sleep(2000);
 	}
 	CloseHandle(port);
 	/*else

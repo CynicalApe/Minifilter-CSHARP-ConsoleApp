@@ -3,7 +3,7 @@
 #include <dontuse.h>
 #include <suppress.h>
 #include <Fltkernel.h>
-
+#include <stdio.h>
 FLT_PREOP_CALLBACK_STATUS
 foo
 (
