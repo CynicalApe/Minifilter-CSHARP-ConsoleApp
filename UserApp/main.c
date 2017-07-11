@@ -4,14 +4,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <Fltuser.h>
+#include "..\UserApp\Header.h"
 
 const PWSTR ScannerPortName = L"\\ScannerPort";
-#define buffersize 1024
-typedef struct joe
-{
-	FILTER_MESSAGE_HEADER header;
-	char buffer[buffersize];
-} JOE, *PJOE;
 
 int _cdecl
 main
@@ -20,9 +15,9 @@ main
 {
 	HRESULT hr;
 	HANDLE port;	
-	HRESULT kernelmessage;
-	JOE message;
-	
+	PJOE message;
+	PRJOE replyMessage;
+	DWORD buf = 1024;
 	printf("Scanner: Connecting to the filter ...\n");
 	hr = FilterConnectCommunicationPort
 	(
@@ -34,24 +29,33 @@ main
 		&port
 	);
 
+	message = malloc(sizeof(JOE));
+	replyMessage = malloc(sizeof(RJOE));
+
 	if (IS_ERROR(hr))
 	{
-		printf("ERROR: Connecting to filter port: 0x%08x\n", port);
+		printf("ERROR: Connecting to filter port: 0x%p\n", port);
 		return 2;
 	}
 
 	while (1)
 	{
-		printf("Connected to port: 0x%08x\n", port);
-		Sleep(2000);
+		printf("Connected to port: 0x%p\n", port);
+		FilterGetMessage(port, &message->header, buf, NULL);
+
+		/* config reply */
+		replyMessage->reply.replyCode = '1';
+		replyMessage->header.MessageId = message->header.MessageId;
+
+		NTSTATUS res = FilterReplyMessage(port, &replyMessage->header, sizeof(RJOE));
+
+		printf("reply id: %llu \n", replyMessage->header.MessageId);
+		printf("reply length: %lu \n", message->header.ReplyLength);
+		
+		printf("status 0x%X\n", res);
 	}
 	CloseHandle(port);
-	/*else
-	{
-		printf("Connected to filter port: 0x%08x\n", port);
-		Sleep(5000);
-		printf("Disconnected to filter port: 0x%08x\n", port);
-		CloseHandle(port);
-	}*/
+	free(message);
+
 	return 0;
 }

@@ -16,7 +16,8 @@ Environment:
 
 
 #include "foo.h"
-
+#include <stdio.h>
+#include "rep.h"
 #pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
 
 SCANNER_DATA ScannerData;
@@ -135,52 +136,66 @@ CONST FLT_OPERATION_REGISTRATION Callbacks[] =
 {
 	{ IRP_MJ_CREATE,
 	  0,
-	  foo,
+	  createRequestCallback,
 	  MiniFilterTestPostOperation },
     { IRP_MJ_OPERATION_END }
 };
 
 FLT_PREOP_CALLBACK_STATUS
-foo
+createRequestCallback
 (
 	_Inout_ PFLT_CALLBACK_DATA Data,
 	_In_ PCFLT_RELATED_OBJECTS FltObjects,
 	_Flt_CompletionContext_Outptr_ PVOID *CompletionContext
 )
 {
-	NTSTATUS status;
+	/* Unreferenced Parameters */
 	UNREFERENCED_PARAMETER(FltObjects);
 	UNREFERENCED_PARAMETER(CompletionContext);
 	UNREFERENCED_PARAMETER(Data);
 
-	char buffer[25] = "kernel callback\n";
-	if (ScannerData.ClientPort && ScannerData.ServerPort && ScannerData.Filter)
+	NTSTATUS status = STATUS_SUCCESS;
+	PUNICODE_STRING fileName = &FltObjects->FileObject->FileName;
+	LARGE_INTEGER Timeout;
+	Timeout.QuadPart = -((LONGLONG)1 * 10 * 1000 * 1000);
+	
+
+	char *testBuf = (char *)ExAllocatePoolWithTag(NonPagedPool, fileName->Length, 'buf1');
+	sprintf(testBuf, "%wZ\0\0", &(*fileName));
+	MESSY_REPLY rep;
+	ULONG replyLength = sizeof(RJOE);
+	if (ScannerData.ClientPort && ScannerData.ServerPort && ScannerData.Filter && strstr(testBuf, "Desktop") != NULL)
 	{
 		DbgPrint("Sending message.\n");
-
-
 		DbgPrint("Client port: 0x%p\n", ScannerData.ClientPort);
 		DbgPrint("Server port: 0x%p\n", ScannerData.ServerPort);
-
-	/*	status = FltSendMessage
+		DbgPrint("FILE: %s: \n", testBuf);
+		status = FltSendMessage
 		(
 			ScannerData.Filter,
 			&(ScannerData.ClientPort),
-			(PVOID)FltObjects->FileObject->FileName.Buffer,
-			FltObjects->FileObject->FileName.Length,
-			NULL,
-			NULL,
-			100
-		);*/
+			(PVOID)testBuf,
+			fileName->Length,
+			&rep.replyCode,
+			&replyLength,
+			&Timeout
+		);
 
-	//if (!NT_SUCCESS(status))
-	//		DbgPrint("Comm error \n");
-
-		DbgPrint("Sent. \n");
+		if (!NT_SUCCESS(status))
+		{
+			DbgPrint("Comm error \n");
+		}
+		else
+		{
+			DbgPrint("Sent. \n");
+		}
+		
+		DbgPrint("reply code : %c", rep.replyCode);
+		
 	}
 
-	
-	//DbgPrint("create request \n");
+	ExFreePoolWithTag(testBuf, 'buf1');
+
 	return FLT_PREOP_SUCCESS_WITH_CALLBACK;
 }
 
@@ -213,40 +228,15 @@ CONST FLT_REGISTRATION FilterRegistration = {
 
 
 NTSTATUS
-ScannerPortConnect(
+portConnect
+(
 	_In_ PFLT_PORT ClientPort,
 	_In_opt_ PVOID ServerPortCookie,
 	_In_reads_bytes_opt_(SizeOfContext) PVOID ConnectionContext,
 	_In_ ULONG SizeOfContext,
 	_Outptr_result_maybenull_ PVOID *ConnectionCookie
 )
-/*++
 
-Routine Description
-
-This is called when user-mode connects to the server port - to establish a
-connection
-
-Arguments
-
-ClientPort - This is the client connection port that will be used to
-send messages from the filter
-
-ServerPortCookie - The context associated with this port when the
-minifilter created this port.
-
-ConnectionContext - Context from entity connecting to this port (most likely
-your user mode service)
-
-SizeofContext - Size of ConnectionContext in bytes
-
-ConnectionCookie - Context to be passed to the port disconnect routine.
-
-Return Value
-
-STATUS_SUCCESS - to accept the connection
-
---*/
 {
 	PAGED_CODE();
 
@@ -258,61 +248,30 @@ STATUS_SUCCESS - to accept the connection
 	FLT_ASSERT(ScannerData.ClientPort == NULL);
 	FLT_ASSERT(ScannerData.UserProcess == NULL);
 
-	//
-	//  Set the user process and port. In a production filter it may
-	//  be necessary to synchronize access to such fields with port
-	//  lifetime. For instance, while filter manager will synchronize
-	//  FltCloseClientPort with FltSendMessage's reading of the port 
-	//  handle, synchronizing access to the UserProcess would be up to
-	//  the filter.
-	//
-
 	ScannerData.UserProcess = PsGetCurrentProcess();
 	ScannerData.ClientPort = ClientPort;
 
-	DbgPrint("Usermode app --- connected, port=0x%p\n", ClientPort);
-
+	DbgPrint("Usermode app connected, port: 0x%p\n", ClientPort);
+	HANDLE id = PsGetProcessId(ScannerData.UserProcess);
+	DbgPrint("Process: %p", id);
 	return STATUS_SUCCESS;
 }
 
 
 VOID
-ScannerPortDisconnect(
+portDisconnect
+(
 	_In_opt_ PVOID ConnectionCookie
 )
-/*++
 
-Routine Description
-
-This is called when the connection is torn-down. We use it to close our
-handle to the connection
-
-Arguments
-
-ConnectionCookie - Context from the port connect routine
-
-Return value
-
-None
-
---*/
 {
 	UNREFERENCED_PARAMETER(ConnectionCookie);
 
 	PAGED_CODE();
 
-	DbgPrint("Usermod app disconnected, port=0x%p\n", ScannerData.ClientPort);
-
-	//
-	//  Close our handle to the connection: note, since we limited max connections to 1,
-	//  another connect will not be allowed until we return from the disconnect routine.
-	//
+	DbgPrint("Usermod app disconnected, port: 0x%p\n", ScannerData.ClientPort);
 
 	FltCloseClientPort(ScannerData.Filter, &ScannerData.ClientPort);
-
-	//
-	//  Reset the user-process field.
-	//
 
 	ScannerData.UserProcess = NULL;
 }
@@ -517,7 +476,7 @@ Return Value:
     //
     //  Register with FltMgr to tell it our callback routines
     //
-	DbgPrint("UPDATE8 \n");
+	DbgPrint("UPDATE12 \n");
 	status = FltRegisterFilter(DriverObject,
 		&FilterRegistration,
 		&ScannerData.Filter);
@@ -558,8 +517,8 @@ Return Value:
 		&ScannerData.ServerPort,
 		&oa,
 		NULL,
-		ScannerPortConnect,
-		ScannerPortDisconnect,
+		portConnect,
+		portDisconnect,
 		NULL,
 		1
 	);

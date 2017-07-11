@@ -4,27 +4,6 @@
 #include <suppress.h>
 #include <Fltkernel.h>
 #include <stdio.h>
-FLT_PREOP_CALLBACK_STATUS
-foo
-(
-	_Inout_ PFLT_CALLBACK_DATA Data,
-	_In_ PCFLT_RELATED_OBJECTS FltObjects,
-	_Flt_CompletionContext_Outptr_ PVOID *CompletionContext
-);
-
-VOID
-ScannerPortDisconnect(
-	_In_opt_ PVOID ConnectionCookie
-);
-
-NTSTATUS
-ScannerPortConnect(
-	_In_ PFLT_PORT ClientPort,
-	_In_opt_ PVOID ServerPortCookie,
-	_In_reads_bytes_opt_(SizeOfContext) PVOID ConnectionContext,
-	_In_ ULONG SizeOfContext,
-	_Outptr_result_maybenull_ PVOID *ConnectionCookie
-);
 
 typedef struct _SCANNER_DATA {
 
@@ -61,4 +40,28 @@ typedef struct _SCANNER_DATA {
 
 } SCANNER_DATA, *PSCANNER_DATA;
 extern SCANNER_DATA ScannerData;
+
 const PWSTR ScannerPortName = L"\\ScannerPort";
+
+FLT_PREOP_CALLBACK_STATUS
+createRequestCallback
+(
+	_Inout_ PFLT_CALLBACK_DATA Data,
+	_In_ PCFLT_RELATED_OBJECTS FltObjects,
+	_Flt_CompletionContext_Outptr_ PVOID *CompletionContext
+);
+
+VOID
+portDisconnect(
+	_In_opt_ PVOID ConnectionCookie
+);
+
+NTSTATUS
+portConnect(
+	_In_ PFLT_PORT ClientPort,
+	_In_opt_ PVOID ServerPortCookie,
+	_In_reads_bytes_opt_(SizeOfContext) PVOID ConnectionContext,
+	_In_ ULONG SizeOfContext,
+	_Outptr_result_maybenull_ PVOID *ConnectionCookie
+);
+
