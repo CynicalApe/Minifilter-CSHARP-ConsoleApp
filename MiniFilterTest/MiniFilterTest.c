@@ -17,10 +17,9 @@ Environment:
 
 #include "foo.h"
 #include <stdio.h>
-#include "rep.h"
 #pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
 
-SCANNER_DATA ScannerData;
+FILTER_DATA FilterData;
 ULONG_PTR OperationStatusCtx = 1;
 
 #define PTDBG_TRACE_ROUTINES            0x00000001
@@ -136,13 +135,13 @@ CONST FLT_OPERATION_REGISTRATION Callbacks[] =
 {
 	{ IRP_MJ_CREATE,
 	  0,
-	  createRequestCallback,
+	  CreateRequestCallback,
 	  MiniFilterTestPostOperation },
     { IRP_MJ_OPERATION_END }
 };
 
 FLT_PREOP_CALLBACK_STATUS
-createRequestCallback
+CreateRequestCallback
 (
 	_Inout_ PFLT_CALLBACK_DATA Data,
 	_In_ PCFLT_RELATED_OBJECTS FltObjects,
@@ -155,25 +154,38 @@ createRequestCallback
 	UNREFERENCED_PARAMETER(Data);
 
 	NTSTATUS status = STATUS_SUCCESS;
-	PUNICODE_STRING fileName = &FltObjects->FileObject->FileName;
-	LARGE_INTEGER Timeout;
-	Timeout.QuadPart = -((LONGLONG)1 * 10 * 1000 * 1000);
 	
+	/* File that triggered the request */
+	PUNICODE_STRING fileName = &FltObjects->FileObject->FileName;
+	
+	/* QuadPart is signed 64 bit integer */
+	LARGE_INTEGER Timeout;
+	Timeout.QuadPart = -((LONGLONG)SECONDS_TO_WAIT * HUNDERED_NANOSEC_TO_SEC); 
+	
+	/* Reply Message Wrapper */
+	FILTER_REPLY_MESSAGE rep;
+	ULONG replyLength = sizeof(FILTER_REPLY);
 
-	char *testBuf = (char *)ExAllocatePoolWithTag(NonPagedPool, fileName->Length, 'buf1');
-	sprintf(testBuf, "%wZ\0\0", &(*fileName));
-	MESSY_REPLY rep;
-	ULONG replyLength = sizeof(RJOE);
-	if (ScannerData.ClientPort && ScannerData.ServerPort && ScannerData.Filter && strstr(testBuf, "Desktop") != NULL)
+	/* Send Message Buffer */
+	char *testBuf = (char *)ExAllocatePoolWithTag(NonPagedPool, fileName->Length+1, 'buf1');
+	
+	for (int i = 0; i < fileName->Length + 1; i++)
+		testBuf[i] = '\0';
+
+	sprintf(testBuf, "%wZ", &(*fileName));
+		
+	if (FilterData.ClientPort && FilterData.ServerPort && FilterData.Filter && strstr(testBuf, "Desktop") != NULL)
 	{
 		DbgPrint("Sending message.\n");
-		DbgPrint("Client port: 0x%p\n", ScannerData.ClientPort);
-		DbgPrint("Server port: 0x%p\n", ScannerData.ServerPort);
+		DbgPrint("Client port: 0x%p \n", FilterData.ClientPort);
+		DbgPrint("Server port: 0x%p \n", FilterData.ServerPort);
 		DbgPrint("FILE: %s: \n", testBuf);
+
+		/* Send message to the listener -if any-*/
 		status = FltSendMessage
 		(
-			ScannerData.Filter,
-			&(ScannerData.ClientPort),
+			FilterData.Filter,
+			&(FilterData.ClientPort),
 			(PVOID)testBuf,
 			fileName->Length,
 			&rep.replyCode,
@@ -181,21 +193,22 @@ createRequestCallback
 			&Timeout
 		);
 
-		if (!NT_SUCCESS(status))
-		{
-			DbgPrint("Comm error \n");
-		}
-		else
-		{
-			DbgPrint("Sent. \n");
-		}
+		DbgPrint("Reply Code : %c", rep.replyCode);
 		
-		DbgPrint("reply code : %c", rep.replyCode);
-		
+
+		if (rep.replyCode == '2')
+		{
+			DbgPrint("COMPLETE");
+			ExFreePoolWithTag(testBuf, 'buf1');
+			return FLT_PREOP_COMPLETE;
+		}
+
 	}
 
+	/* Free the resources */
+	
+	
 	ExFreePoolWithTag(testBuf, 'buf1');
-
 	return FLT_PREOP_SUCCESS_WITH_CALLBACK;
 }
 
@@ -245,15 +258,15 @@ portConnect
 	UNREFERENCED_PARAMETER(SizeOfContext);
 	UNREFERENCED_PARAMETER(ConnectionCookie = NULL);
 
-	FLT_ASSERT(ScannerData.ClientPort == NULL);
-	FLT_ASSERT(ScannerData.UserProcess == NULL);
+	FLT_ASSERT(FilterData.ClientPort == NULL);
+	FLT_ASSERT(FilterData.UserProcess == NULL);
 
-	ScannerData.UserProcess = PsGetCurrentProcess();
-	ScannerData.ClientPort = ClientPort;
+	/* Configure the Filter Data*/
+	FilterData.UserProcess = PsGetCurrentProcess();
+	FilterData.ClientPort = ClientPort;
 
 	DbgPrint("Usermode app connected, port: 0x%p\n", ClientPort);
-	HANDLE id = PsGetProcessId(ScannerData.UserProcess);
-	DbgPrint("Process: %p", id);
+	PsGetProcessId(FilterData.UserProcess);
 	return STATUS_SUCCESS;
 }
 
@@ -269,11 +282,13 @@ portDisconnect
 
 	PAGED_CODE();
 
-	DbgPrint("Usermod app disconnected, port: 0x%p\n", ScannerData.ClientPort);
+	DbgPrint("Usermod app disconnected, port: 0x%p\n", FilterData.ClientPort);
 
-	FltCloseClientPort(ScannerData.Filter, &ScannerData.ClientPort);
+	/* Close Client */
+	FltCloseClientPort(FilterData.Filter, &FilterData.ClientPort);
 
-	ScannerData.UserProcess = NULL;
+	/* Remove saved process id since we are only allowing a single port */
+	FilterData.UserProcess = NULL;
 }
 
 
@@ -476,10 +491,10 @@ Return Value:
     //
     //  Register with FltMgr to tell it our callback routines
     //
-	DbgPrint("UPDATE12 \n");
+	DbgPrint("UPDATE15 \n");
 	status = FltRegisterFilter(DriverObject,
 		&FilterRegistration,
-		&ScannerData.Filter);
+		&FilterData.Filter);
 
     FLT_ASSERT( NT_SUCCESS( status ) );
 
@@ -487,7 +502,7 @@ Return Value:
 	//  Create a communication port.
 	//
 
-	RtlInitUnicodeString(&uniString, ScannerPortName);
+	RtlInitUnicodeString(&uniString, FilterPortName);
 
 	//
 	//  We secure the port so only ADMINs & SYSTEM can acecss it.
@@ -513,8 +528,8 @@ Return Value:
 
 	status = FltCreateCommunicationPort
 	(
-		ScannerData.Filter,
-		&ScannerData.ServerPort,
+		FilterData.Filter,
+		&FilterData.ServerPort,
 		&oa,
 		NULL,
 		portConnect,
@@ -540,11 +555,11 @@ Return Value:
 		//  Start filtering i/o
 		//
 
-		status = FltStartFiltering(ScannerData.Filter);
+		status = FltStartFiltering(FilterData.Filter);
 
 		if (!NT_SUCCESS(status)) {
 
-			FltUnregisterFilter(ScannerData.Filter);
+			FltUnregisterFilter(FilterData.Filter);
 		}
 	}
     return status;
@@ -580,8 +595,8 @@ Return Value:
     PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
                   ("MiniFilterTest!MiniFilterTestUnload: Entered\n") );
 
-	FltCloseCommunicationPort(ScannerData.ServerPort);
-    FltUnregisterFilter(ScannerData.Filter);
+	FltCloseCommunicationPort(FilterData.ServerPort);
+    FltUnregisterFilter(FilterData.Filter);
 
 
 	//

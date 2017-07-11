@@ -12,10 +12,10 @@ typedef struct messyMessage
 	char buffer[buffersize];
 }MESSY_MESSAGE;
 
-typedef struct messyReply
+typedef struct _REPLY_MESSAGE
 {
 	char replyCode;
-}MESSY_REPLY;
+}FILTER_REPLY_MESSAGE;
 
 typedef struct joe
 {
@@ -23,8 +23,8 @@ typedef struct joe
 	MESSY_MESSAGE message;
 } JOE, *PJOE;
 
-typedef struct ReplyJoe
+typedef struct _REPLY_STRUCTURE
 {
 	FILTER_REPLY_HEADER header;
-	MESSY_REPLY reply;
-}RJOE, *PRJOE;
+	FILTER_REPLY_MESSAGE reply;
+}FILTER_REPLY, *PFILTER_REPLY;

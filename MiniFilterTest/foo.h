@@ -5,7 +5,10 @@
 #include <Fltkernel.h>
 #include <stdio.h>
 
-typedef struct _SCANNER_DATA {
+#define SECONDS_TO_WAIT 1
+#define HUNDERED_NANOSEC_TO_SEC 10000000
+
+typedef struct _FILTER_DATA {
 
 	//
 	//  The object that identifies this driver.
@@ -38,13 +41,13 @@ typedef struct _SCANNER_DATA {
 
 	PFLT_PORT ClientPort;
 
-} SCANNER_DATA, *PSCANNER_DATA;
-extern SCANNER_DATA ScannerData;
+} FILTER_DATA, *PFILTER_DATA;
+extern FILTER_DATA FilterData;
 
-const PWSTR ScannerPortName = L"\\ScannerPort";
+const PWSTR FilterPortName = L"\\ScannerPort";
 
 FLT_PREOP_CALLBACK_STATUS
-createRequestCallback
+CreateRequestCallback
 (
 	_Inout_ PFLT_CALLBACK_DATA Data,
 	_In_ PCFLT_RELATED_OBJECTS FltObjects,
@@ -52,16 +55,29 @@ createRequestCallback
 );
 
 VOID
-portDisconnect(
+portDisconnect
+(
 	_In_opt_ PVOID ConnectionCookie
 );
 
 NTSTATUS
-portConnect(
+portConnect
+(
 	_In_ PFLT_PORT ClientPort,
 	_In_opt_ PVOID ServerPortCookie,
 	_In_reads_bytes_opt_(SizeOfContext) PVOID ConnectionContext,
 	_In_ ULONG SizeOfContext,
 	_Outptr_result_maybenull_ PVOID *ConnectionCookie
 );
+
+typedef struct _REPLY_MESSAGE
+{
+	char replyCode;
+}FILTER_REPLY_MESSAGE, *PFILTER_REPLY_MESSAJ;
+
+typedef struct _REPLY_STRUCTURE
+{
+	FILTER_REPLY_HEADER header;
+	FILTER_REPLY_MESSAGE reply;
+}FILTER_REPLY, *PFILTER_REPLY;
 

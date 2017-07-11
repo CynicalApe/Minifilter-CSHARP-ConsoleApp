@@ -37,8 +37,5 @@
     <ClInclude Include="foo.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="rep.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
 </Project>
