@@ -1,4 +1,3 @@
-
 #include <windows.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -8,24 +7,58 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <regex>
+
+#define SUCCESS_FOUND 00
+#define SUCCESS_NOT_FOUND 01
+#define WRONG_FILE_FORMAT 10
+#define PERMISSION_FILE_NOT_FOUND 11
+#define BUFFER_SIZE 256
+
+#define NO_ACCESS 0
+#define READ_ONLY 1
+#define WRITE_ONLY 5
+#define COMPLETE_ACCESS 7
+
+
 
 using std::ofstream;
 using std::string;
-/* Port name */
-const PWSTR FilterPortName = L"\\ScannerPort";
 
 
-bool foo(const char *input)
+UINT foo(const char *input, PPERM_CODE perm)
 {
-	std::ifstream app("C:\\rest.txt", std::ofstream::in);
-	char buffer[256]{ '\0' };
-	while (app.getline(buffer, 256))
+	/* Grammar format*/
+	std::regex PERMISSION_GRAMMAR("^:[0157]:[^:><\\/\?#*;]+;$");
+
+	std::ifstream app;
+	app.open("C:\\rest.txt", std::ofstream::in);
+
+
+	
+	if (!app)
+		return PERMISSION_FILE_NOT_FOUND;
+
+	char buffer[BUFFER_SIZE]{ '\0' };
+	while (app.getline(buffer, BUFFER_SIZE))
 	{
-		if (strstr(input, buffer))
-			return TRUE;
-		memset(&buffer, 0, sizeof(buffer));
+		if (!std::regex_match(buffer, PERMISSION_GRAMMAR))
+		{
+			perm->PermissionLevel = 7;
+			return WRONG_FILE_FORMAT;
+		}
+
+		if (strstr(input,&buffer[3]))
+		{
+			printf("buffer: %s \n", buffer);
+			perm->PermissionLevel = buffer[1] - '0';
+			return SUCCESS_FOUND;
+		}
+		memset(buffer, 0, BUFFER_SIZE);
+		
 	}
-	return false;
+	perm->PermissionLevel = 7;
+	return SUCCESS_NOT_FOUND;
 }
 
 int _cdecl
@@ -83,15 +116,13 @@ main
 			ptr++;
 			i++;
 		}
-
+		printf("mesBuff: %s \n", mesBuff);
 		/* config the reply according to the sent message */
-		replyMessage->reply.replyCode = '9';
 		replyMessage->header.MessageId = message->header.MessageId;
 
-		if (foo(mesBuff))
-		{
-			replyMessage->reply.replyCode = '2';
-		}
+		UINT exit = foo(mesBuff, &replyMessage->reply.permission);
+		printf("foo returned: %u \n", exit);
+		printf("Permission level: %u \n", replyMessage->reply.permission.PermissionLevel);
 
 		/* Reply to the sent message */
 		NTSTATUS res = FilterReplyMessage(
@@ -100,9 +131,9 @@ main
 			sizeof(FILTER_REPLY)
 		);
 
+
+		memset(mesBuff, 0, 1024);
 		/* For debugging */
-		printf("reply id: %llu \n", replyMessage->header.MessageId);
-		printf("reply length: %lu \n", message->header.ReplyLength);
 		printf("status 0x%X\n", res);
 	}
 

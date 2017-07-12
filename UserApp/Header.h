@@ -2,7 +2,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <regex>
 
+
+/* Port name */
+const PWSTR FilterPortName = L"\\ScannerPort";
 
 #pragma pack(1)
 
@@ -12,9 +16,14 @@ typedef struct messyMessage
 	char buffer[buffersize];
 }MESSY_MESSAGE;
 
+typedef struct _PERM_CODE
+{
+	USHORT PermissionLevel;
+}PERM_CODE, *PPERM_CODE;
+
 typedef struct _REPLY_MESSAGE
 {
-	char replyCode;
+	PERM_CODE permission;
 }FILTER_REPLY_MESSAGE;
 
 typedef struct joe
@@ -28,3 +37,4 @@ typedef struct _REPLY_STRUCTURE
 	FILTER_REPLY_HEADER header;
 	FILTER_REPLY_MESSAGE reply;
 }FILTER_REPLY, *PFILTER_REPLY;
+

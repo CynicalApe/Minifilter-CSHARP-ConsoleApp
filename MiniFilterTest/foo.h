@@ -7,6 +7,10 @@
 
 #define SECONDS_TO_WAIT 1
 #define HUNDERED_NANOSEC_TO_SEC 10000000
+#define NO_ACCESS 0
+#define READ_ONLY 1
+#define WRITE_ONLY 5
+#define COMPLETE_ACCESS 7
 
 typedef struct _FILTER_DATA {
 
@@ -70,9 +74,14 @@ portConnect
 	_Outptr_result_maybenull_ PVOID *ConnectionCookie
 );
 
+typedef struct _PERM_CODE
+{
+	USHORT PermissionLevel;
+}PERM_CODE, *PPERM_CODE;
+
 typedef struct _REPLY_MESSAGE
 {
-	char replyCode;
+	PERM_CODE permission;
 }FILTER_REPLY_MESSAGE, *PFILTER_REPLY_MESSAJ;
 
 typedef struct _REPLY_STRUCTURE

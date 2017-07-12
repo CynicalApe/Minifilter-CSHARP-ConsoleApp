@@ -167,19 +167,16 @@ CreateRequestCallback
 	ULONG replyLength = sizeof(FILTER_REPLY);
 
 	/* Send Message Buffer */
-	char *testBuf = (char *)ExAllocatePoolWithTag(NonPagedPool, fileName->Length+1, 'buf1');
-	
-	for (int i = 0; i < fileName->Length + 1; i++)
-		testBuf[i] = '\0';
+	char *testBuf = (char *)ExAllocatePoolWithTag(NonPagedPool, fileName->Length + 3, 'buf1');
+	memset(testBuf, 0, fileName->Length + 3);
+	sprintf(testBuf, "%wZ;", &(*fileName));
 
-	sprintf(testBuf, "%wZ", &(*fileName));
-		
 	if (FilterData.ClientPort && FilterData.ServerPort && FilterData.Filter && strstr(testBuf, "Desktop") != NULL)
 	{
 		DbgPrint("Sending message.\n");
 		DbgPrint("Client port: 0x%p \n", FilterData.ClientPort);
 		DbgPrint("Server port: 0x%p \n", FilterData.ServerPort);
-		DbgPrint("FILE: %s: \n", testBuf);
+		DbgPrint("FILE: %s \n", testBuf);
 
 		/* Send message to the listener -if any-*/
 		status = FltSendMessage
@@ -187,16 +184,16 @@ CreateRequestCallback
 			FilterData.Filter,
 			&(FilterData.ClientPort),
 			(PVOID)testBuf,
-			fileName->Length,
-			&rep.replyCode,
+			(fileName->Length + 3),
+			&rep.permission,
 			&replyLength,
 			&Timeout
 		);
 
-		DbgPrint("Reply Code : %c", rep.replyCode);
+		DbgPrint("Reply Code : %u", rep.permission.PermissionLevel);
 		
 
-		if (rep.replyCode == '2')
+		if (rep.permission.PermissionLevel == NO_ACCESS)
 		{
 			DbgPrint("COMPLETE");
 			ExFreePoolWithTag(testBuf, 'buf1');
