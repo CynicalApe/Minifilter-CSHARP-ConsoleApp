@@ -50,6 +50,27 @@ extern FILTER_DATA FilterData;
 
 const PWSTR FilterPortName = L"\\ScannerPort";
 
+
+FLT_PREOP_CALLBACK_STATUS
+WriteRequestCallback
+(
+	_Inout_ PFLT_CALLBACK_DATA Data,
+	_In_ PCFLT_RELATED_OBJECTS FltObjects,
+	_Flt_CompletionContext_Outptr_ PVOID *CompletionContext
+);
+
+USHORT
+PostMan(_In_ PCFLT_RELATED_OBJECTS FltObjects);
+
+FLT_PREOP_CALLBACK_STATUS
+SetInformationRequestCallback
+(
+	_Inout_ PFLT_CALLBACK_DATA Data,
+	_In_ PCFLT_RELATED_OBJECTS FltObjects,
+	_Flt_CompletionContext_Outptr_ PVOID *CompletionContext
+);
+
+
 FLT_PREOP_CALLBACK_STATUS
 CreateRequestCallback
 (

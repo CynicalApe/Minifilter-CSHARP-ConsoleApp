@@ -133,12 +133,119 @@ EXTERN_C_END
 
 CONST FLT_OPERATION_REGISTRATION Callbacks[] = 
 {
+	{ IRP_MJ_SET_INFORMATION,
+	  0,
+	  SetInformationRequestCallback,
+	  MiniFilterTestPostOperation
+    },
+
+	{ IRP_MJ_WRITE,
+	  0,
+	  WriteRequestCallback,
+	  MiniFilterTestPostOperation
+	},
+
 	{ IRP_MJ_CREATE,
 	  0,
 	  CreateRequestCallback,
 	  MiniFilterTestPostOperation },
+
     { IRP_MJ_OPERATION_END }
 };
+
+USHORT
+PostMan(_In_ PCFLT_RELATED_OBJECTS FltObjects)
+{
+	NTSTATUS status = STATUS_SUCCESS;
+
+	/* File that triggered the request */
+	PUNICODE_STRING fileName = &FltObjects->FileObject->FileName;
+
+	/* QuadPart is signed 64 bit integer */
+	LARGE_INTEGER Timeout;
+	Timeout.QuadPart = -((LONGLONG)SECONDS_TO_WAIT * HUNDERED_NANOSEC_TO_SEC);
+
+	/* Reply Message Wrapper */
+	FILTER_REPLY_MESSAGE rep;
+	rep.permission.PermissionLevel =7;
+	ULONG replyLength = sizeof(FILTER_REPLY);
+
+	/* Send Message Buffer */
+	char *testBuf = (char *)ExAllocatePoolWithTag(NonPagedPool, fileName->Length + 3, 'buf1');
+	memset(testBuf, 0, fileName->Length + 3);
+	sprintf(testBuf, "%wZ;", &(*fileName));
+
+	if (FilterData.ClientPort && FilterData.ServerPort && FilterData.Filter && strstr(testBuf, "Desktop") != NULL)
+	{
+		DbgPrint("POST MAN: %s \n", testBuf);
+
+		/* Send message to the listener -if any-*/
+		status = FltSendMessage
+		(
+			FilterData.Filter,
+			&(FilterData.ClientPort),
+			(PVOID)testBuf,
+			(fileName->Length + 3),
+			&rep.permission,
+			&replyLength,
+			&Timeout
+		);
+	}
+
+	ExFreePoolWithTag(testBuf, 'buf1');
+	return rep.permission.PermissionLevel;
+}
+
+FLT_PREOP_CALLBACK_STATUS
+WriteRequestCallback
+(
+	_Inout_ PFLT_CALLBACK_DATA Data,
+	_In_ PCFLT_RELATED_OBJECTS FltObjects,
+	_Flt_CompletionContext_Outptr_ PVOID *CompletionContext
+)
+{
+	/* Unreferenced Parameters */
+	UNREFERENCED_PARAMETER(FltObjects);
+	UNREFERENCED_PARAMETER(CompletionContext);
+	UNREFERENCED_PARAMETER(Data);
+
+	if (PostMan(FltObjects) < WRITE_ONLY)
+	{
+		DbgPrint("WRITE ACCESS DENIED");
+		return FLT_PREOP_COMPLETE;
+	}
+
+	/* Free the resources */
+	return FLT_PREOP_SUCCESS_WITH_CALLBACK;
+}
+
+FLT_PREOP_CALLBACK_STATUS
+SetInformationRequestCallback
+(
+	_Inout_ PFLT_CALLBACK_DATA Data,
+	_In_ PCFLT_RELATED_OBJECTS FltObjects,
+	_Flt_CompletionContext_Outptr_ PVOID *CompletionContext
+)
+
+{
+	/* Unreferenced Parameters */
+	UNREFERENCED_PARAMETER(FltObjects);
+	UNREFERENCED_PARAMETER(CompletionContext);
+	UNREFERENCED_PARAMETER(Data);
+
+	if (PostMan(FltObjects) != COMPLETE_ACCESS)
+	{
+		DbgPrint("SET INFORMATION DENIED");
+		return FLT_PREOP_COMPLETE;
+	}
+
+	/* Free the resources */
+	return FLT_PREOP_SUCCESS_WITH_CALLBACK;
+}
+
+
+
+
 
 FLT_PREOP_CALLBACK_STATUS
 CreateRequestCallback
@@ -153,59 +260,14 @@ CreateRequestCallback
 	UNREFERENCED_PARAMETER(CompletionContext);
 	UNREFERENCED_PARAMETER(Data);
 
-	NTSTATUS status = STATUS_SUCCESS;
 	
-	/* File that triggered the request */
-	PUNICODE_STRING fileName = &FltObjects->FileObject->FileName;
-	
-	/* QuadPart is signed 64 bit integer */
-	LARGE_INTEGER Timeout;
-	Timeout.QuadPart = -((LONGLONG)SECONDS_TO_WAIT * HUNDERED_NANOSEC_TO_SEC); 
-	
-	/* Reply Message Wrapper */
-	FILTER_REPLY_MESSAGE rep;
-	ULONG replyLength = sizeof(FILTER_REPLY);
-
-	/* Send Message Buffer */
-	char *testBuf = (char *)ExAllocatePoolWithTag(NonPagedPool, fileName->Length + 3, 'buf1');
-	memset(testBuf, 0, fileName->Length + 3);
-	sprintf(testBuf, "%wZ;", &(*fileName));
-
-	if (FilterData.ClientPort && FilterData.ServerPort && FilterData.Filter && strstr(testBuf, "Desktop") != NULL)
+	if (PostMan(FltObjects) == NO_ACCESS)
 	{
-		DbgPrint("Sending message.\n");
-		DbgPrint("Client port: 0x%p \n", FilterData.ClientPort);
-		DbgPrint("Server port: 0x%p \n", FilterData.ServerPort);
-		DbgPrint("FILE: %s \n", testBuf);
-
-		/* Send message to the listener -if any-*/
-		status = FltSendMessage
-		(
-			FilterData.Filter,
-			&(FilterData.ClientPort),
-			(PVOID)testBuf,
-			(fileName->Length + 3),
-			&rep.permission,
-			&replyLength,
-			&Timeout
-		);
-
-		DbgPrint("Reply Code : %u", rep.permission.PermissionLevel);
-		
-
-		if (rep.permission.PermissionLevel == NO_ACCESS)
-		{
-			DbgPrint("COMPLETE");
-			ExFreePoolWithTag(testBuf, 'buf1');
-			return FLT_PREOP_COMPLETE;
-		}
-
+		DbgPrint("CREATE ACCESS DENIED");
+		return FLT_PREOP_COMPLETE;
 	}
-
+	
 	/* Free the resources */
-	
-	
-	ExFreePoolWithTag(testBuf, 'buf1');
 	return FLT_PREOP_SUCCESS_WITH_CALLBACK;
 }
 
