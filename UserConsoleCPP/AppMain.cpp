@@ -29,7 +29,7 @@ using std::string;
 UINT foo(const char *input, PPERM_CODE perm)
 {
 	/* Grammar format*/
-	std::regex PERMISSION_GRAMMAR("^:[0157]:[^:><\\/\?#*;]+;$");
+	std::regex PERMISSION_GRAMMAR(":[0157]:[^:;<>\\/?#*;]+[;]");
 
 	std::ifstream app;
 	app.open("C:\\rest.txt", std::ofstream::in);
