@@ -8,7 +8,9 @@
 * Then according to the the app's response it either cancels or forwards the request to the next driver on the stack
 
 ## The APP
-* Uses marhsalled Ftllib.dll functions and structures to talk with the driver
+* App has the decision mechanism for the driver to ignore or forward the request to the next level. 
+* Uses marhsalled Ftllib.dll functions and structures to talk with the driver.
 * Uses Entity framework to read from or add new restricted files. 
 * Has built-in functions for changing the database
-* Every successfull access to the listed files will be logged in another entity framework database
+* Every successfull access to the listed files will be logged in another entity framework database.
+
