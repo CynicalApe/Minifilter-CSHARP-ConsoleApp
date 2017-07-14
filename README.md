@@ -8,7 +8,13 @@
 for a quick restriction check
 * Then according to the the app's response it either cancels or forwards the request to the next driver on the stack
 
+
+
 ## The APP
+
+![alt text](https://github.com/CynicalApe/Minifilter-CSHARP-ConsoleApp/blob/master/ss_console.PNG?raw=true)
+
+
 * App has the decision mechanism for the driver to ignore or forward the request to the next level. 
 * Uses marhsalled Ftllib.dll functions and structures to talk with the driver.
 * Uses Entity framework to read from or add new restricted files. 
